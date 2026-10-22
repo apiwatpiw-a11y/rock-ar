@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ส่องหินอัคนี AR</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bai+Jamjuree:wght@500;600;700&family=Sarabun:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<script type="module" src="https://cdn.jsdelivr.net/npm/@google/model-viewer@4.2.0/dist/model-viewer.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<style>
+/* Layout: specimen tray (rock list) | stage (3D/AR) | specimen card. Phone: stage on top, tray as a scrolling strip, card below. */
+:root{
+  --bg:#ecebe9; --surface:#fbfaf9; --stage:#dedbd8; --stage2:#f6f4f2;
+  --fg:#211c1a; --muted:#6b625d; --line:#d3cdc9;
+  --accent:#b23a1f; --accent-ink:#fff; --accent-soft:#f3ddd5; --ok:#2f6b4f;
+  --f-display:"Bai Jamjuree","Sarabun",system-ui,sans-serif;
+  --f-body:"Sarabun",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#151211; --surface:#1e1a18; --stage:#100d0c; --stage2:#2a2421;
+  --fg:#efe9e5; --muted:#a59a94; --line:#3a322e;
+  --accent:#e46a45; --accent-ink:#1a0d08; --accent-soft:#3b211a; --ok:#7cc4a0; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#151211; --surface:#1e1a18; --stage:#100d0c; --stage2:#2a2421;
+  --fg:#efe9e5; --muted:#a59a94; --line:#3a322e;
+  --accent:#e46a45; --accent-ink:#1a0d08; --accent-soft:#3b211a; --ok:#7cc4a0; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--fg);font:16px/1.65 var(--f-body);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:14px 32px}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+a{color:var(--accent)}
+.top{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 20px;max-width:1440px;margin:0 auto 12px}
+.top h1{font:700 clamp(1.35rem,1rem + 1.4vw,1.9rem)/1.2 var(--f-display);margin:0;text-wrap:balance}
+.top h1 small{display:block;font:500 .82rem/1.4 var(--f-mono);letter-spacing:.06em;color:var(--accent);text-transform:uppercase}
+.top p{margin:0;color:var(--muted);max-width:56ch;font-size:.95rem}
+.top .acts{display:flex;gap:8px;flex-wrap:wrap}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:6px 12px;font-size:.92rem;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{border-color:var(--accent)}
+.btn[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--fg)}
+
+.app{max-width:1440px;margin:0 auto;display:grid;gap:16px;grid-template-columns:240px minmax(0,1fr) 360px;align-items:start}
+/* tray */
+.tray{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px;position:sticky;top:calc(env(safe-area-inset-top,0px) + 12px)}
+.tray h2{font:600 .78rem/1.3 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:10px 4px 6px}
+.tray h2:first-child{margin-top:2px}
+.tray ul{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.rk{width:100%;display:grid;grid-template-columns:22px 1fr;gap:2px 10px;align-items:center;text-align:left;background:none;border:1px solid transparent;border-radius:8px;padding:6px 8px}
+.rk i{grid-row:span 2;width:22px;height:22px;border-radius:50% 42% 48% 40%;box-shadow:inset 0 0 0 1px rgb(0 0 0/.18)}
+.rk b{font:600 .98rem/1.25 var(--f-display)}
+.rk span{font-size:.78rem;color:var(--muted);line-height:1.3}
+.rk:hover{background:var(--stage2)}
+.rk[aria-current="true"]{background:var(--accent-soft);border-color:var(--accent)}
+
+/* stage */
+.stage{position:relative;border-radius:14px;overflow:hidden;background:radial-gradient(120% 90% at 50% 35%,var(--stage2),var(--stage));border:1px solid var(--line);height:min(76vh,720px);min-height:420px}
+model-viewer{width:100%;height:100%;background:transparent;--poster-color:transparent;--progress-bar-color:var(--accent);--progress-bar-height:3px}
+.meta{position:absolute;left:14px;top:12px;right:14px;display:flex;justify-content:space-between;gap:8px;pointer-events:none;font:500 .8rem/1.4 var(--f-mono);color:var(--muted)}
+.meta b{font:700 1.05rem/1.2 var(--f-display);color:var(--fg);display:block}
+.tools{position:absolute;right:12px;bottom:12px;display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+.tools .btn{font-size:.85rem;padding:5px 10px}
+.tools .btn{background:color-mix(in srgb,var(--surface) 88%,transparent);backdrop-filter:blur(6px)}
+#arBtn{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);background:var(--accent);color:var(--accent-ink);border:0;border-radius:999px;padding:12px 22px;font:700 1rem/1 var(--f-display);box-shadow:0 6px 18px rgb(0 0 0/.25);display:flex;align-items:center;gap:8px;white-space:nowrap}
+#arBtn svg{width:20px;height:20px}
+.arNote{position:absolute;left:12px;bottom:12px;max-width:min(330px,calc(100% - 150px));font-size:.82rem;line-height:1.45;color:var(--muted);background:color-mix(in srgb,var(--surface) 90%,transparent);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.loading{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;font:500 .9rem var(--f-mono);color:var(--muted)}
+.hint{position:absolute;left:50%;top:56px;transform:translateX(-50%);background:var(--accent);color:var(--accent-ink);padding:6px 14px;border-radius:999px;font-size:.9rem;white-space:nowrap}
+
+/* pins */
+.pin{--s:28px;width:var(--s);height:var(--s);border-radius:50%;border:2px solid var(--accent);background:var(--surface);color:var(--fg);font:700 .8rem/1 var(--f-mono);display:grid;place-items:center;padding:0;position:relative;transition:opacity .2s;box-shadow:0 2px 6px rgb(0 0 0/.3)}
+.pin:not([data-visible]){opacity:.3}
+.pin.on{background:var(--accent);color:var(--accent-ink);transform:scale(1.12)}
+.pin .tag{position:absolute;left:calc(100% + 6px);top:50%;transform:translateY(-50%);background:var(--surface);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:2px 8px;font:600 .82rem/1.4 var(--f-body);white-space:nowrap;display:none;box-shadow:0 2px 8px rgb(0 0 0/.18)}
+.pin.on .tag,.showAll .pin .tag{display:block}
+.noPins .pin{display:none}
+
+/* card */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px;min-width:0}
+.card h2{font:700 1.6rem/1.2 var(--f-display);margin:0}
+.card .en{font:500 .85rem var(--f-mono);color:var(--muted);letter-spacing:.03em}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 4px}
+.chip{font-size:.8rem;border:1px solid var(--line);border-radius:999px;padding:1px 10px;background:var(--bg)}
+.chip.k{border-color:var(--accent);color:var(--accent);background:transparent}
+.card h3{font:600 .76rem/1.3 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:16px 0 4px}
+.card p{margin:0}
+.note{background:var(--accent-soft);border-radius:8px;padding:8px 10px;font-size:.92rem;margin-top:10px}
+.labels{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.lb{display:grid;grid-template-columns:26px 1fr auto;gap:2px 10px;align-items:start;text-align:left;width:100%;background:none;border:1px solid transparent;border-radius:8px;padding:6px}
+.lb .n{width:24px;height:24px;border-radius:50%;border:2px solid var(--accent);display:grid;place-items:center;font:700 .75rem/1 var(--f-mono);margin-top:2px}
+.lb b{font-weight:600}
+.lb small{grid-column:2;color:var(--muted);font-size:.86rem;line-height:1.5}
+.lb:hover{background:var(--stage2)}
+.lb.on{background:var(--accent-soft);border-color:var(--accent)}
+.lb.on .n{background:var(--accent);color:var(--accent-ink)}
+.lbrow{display:flex;gap:4px;align-items:start}
+.lbrow .lb{flex:1}
+.mv{display:none;font-size:.8rem;padding:4px 8px;align-self:center}
+.editing .mv{display:inline-flex}
+.dims{font:500 .85rem var(--f-mono);font-variant-numeric:tabular-nums}
+.credit{font-size:.8rem;color:var(--muted);line-height:1.5;border-top:1px solid var(--line);margin-top:16px;padding-top:10px}
+.teacher{margin-top:14px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.teacher .msg{font-size:.82rem;color:var(--ok);flex-basis:100%}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:.92rem;max-width:min(92vw,520px);z-index:30}
+
+/* QR sheet */
+.sheet{position:fixed;inset:0;background:rgb(0 0 0/.5);z-index:40;display:grid;place-items:center;padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.sheet>div{background:var(--surface);border-radius:14px;max-width:960px;width:100%;max-height:100%;overflow:auto;padding:18px}
+.sheet h2{font:700 1.3rem var(--f-display);margin:0 0 4px}
+.sheet .row{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+.sheet input{flex:1 1 260px;min-width:0;font:inherit;font-size:.9rem;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg)}
+.qrs{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.qr{border:1px solid var(--line);border-radius:10px;padding:10px;text-align:center;background:#fff;color:#111}
+.qr svg{width:100%;height:auto;display:block}
+.qr b{font:600 .95rem var(--f-display);display:block}
+.qr span{font:500 .7rem var(--f-mono);color:#555}
+
+@media (max-width:1100px){.app{grid-template-columns:210px minmax(0,1fr)}.card{grid-column:1/-1}}
+@media (max-width:760px){
+  .app{grid-template-columns:minmax(0,1fr)}
+  .tray{position:static;padding:8px;order:-1;overflow-x:auto}
+  .tray .grp{display:contents}
+  .tray .wrap{display:flex;gap:6px;width:max-content}
+  .tray h2{display:none}
+  .tray ul{display:flex;gap:6px}
+  .rk{width:auto;white-space:nowrap;border-color:var(--line)}
+  .rk span{display:none}
+  .rk i{grid-row:auto;width:18px;height:18px}
+  .stage{height:62vh;min-height:360px}
+  .tools{left:8px;right:8px;bottom:8px;flex-direction:row;flex-wrap:wrap;justify-content:center;gap:4px}
+  .tools .btn{font-size:.8rem;padding:4px 8px}
+  #arBtn{bottom:52px}
+  .arNote{max-width:none;left:12px;right:12px;top:58px;bottom:auto;font-size:.78rem}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+
+<header class="top">
+  <h1><small>Igneous rocks · 3D / AR</small>ส่องหินอัคนีแบบ 3 มิติและ AR</h1>
+  <p>หมุนดูหินจริงที่สแกนด้วยโฟโตแกรมเมตรี แตะหมุดตัวเลขเพื่ออ่านชื่อแร่และลักษณะเนื้อหิน แล้วกดปุ่ม AR บนมือถือเพื่อวางก้อนหินขนาดจริงบนโต๊ะ</p>
+  <div class="acts"><button class="btn" id="qrOpen" type="button">QR สำหรับนักเรียน</button></div>
+</header>
+
+<main class="app" id="app">
+  <nav class="tray" aria-label="รายการหิน"><div class="wrap" id="tray"></div></nav>
+
+  <section class="stage" aria-label="โมเดลหิน 3 มิติ">
+    <model-viewer id="mv" loading="eager" camera-controls touch-action="pan-y" auto-rotate auto-rotate-delay="4000" rotation-per-second="18deg"
+      shadow-intensity="0.9" shadow-softness="0.8" exposure="1.05" environment-image="neutral"
+      ar ar-modes="webxr scene-viewer quick-look" ar-scale="fixed" ar-placement="floor"
+      camera-orbit="20deg 65deg auto" min-camera-orbit="auto 5deg auto" max-camera-orbit="auto 175deg auto" interaction-prompt="none"
+      alt="โมเดลสามมิติของก้อนหิน">
+      <button slot="ar-button" id="arBtn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 7.5v9L12 21l8-4.5v-9L12 3Z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/></svg>วางบนโต๊ะจริง (AR)</button>
+    </model-viewer>
+    <div class="meta"><div><b id="mName"></b><span id="mSub"></span></div><div class="dims" id="mDims"></div></div>
+    <div class="loading" id="loading" hidden>กำลังโหลดโมเดล…</div>
+    <div class="hint" id="hint" hidden>แตะบนก้อนหินตรงจุดที่จะวางป้าย</div>
+    <div class="arNote" id="arNote" hidden>ปุ่ม AR จะแสดงเมื่อเปิดหน้านี้บนมือถือ (Android ที่รองรับ ARCore หรือ iPhone/iPad) ใช้ปุ่ม “QR สำหรับนักเรียน” เพื่อสแกนเปิดในมือถือ</div>
+    <div class="tools">
+      <button class="btn" id="tPins" type="button" aria-pressed="true">หมุดป้าย</button>
+      <button class="btn" id="tNames" type="button" aria-pressed="false">ชื่อทุกป้าย</button>
+      <button class="btn" id="tSpin" type="button" aria-pressed="true">หมุนอัตโนมัติ</button>
+      <button class="btn" id="tReset" type="button">ดูทั้งก้อน</button>
+    </div>
+  </section>
+
+  <article class="card" id="card" aria-live="polite"></article>
+</main>
+
+<div class="sheet" id="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="qrTitle"><div>
+  <div style="display:flex;justify-content:space-between;gap:12px;align-items:start">
+    <div><h2 id="qrTitle">QR เปิดหินแต่ละก้อน</h2><p style="margin:0;color:var(--muted);font-size:.9rem">นักเรียนสแกนแล้วหน้าเว็บจะเปิดที่หินก้อนนั้นทันที ถ่ายภาพหน้าจอหรือพิมพ์ติดไว้กับตัวอย่างหินจริง</p></div>
+    <button class="btn" id="qrClose" type="button">ปิด</button>
+  </div>
+  <div class="row"><input id="qrBase" type="url" placeholder="วางลิงก์ของหน้านี้ เช่น https://ชื่อผู้ใช้.github.io/rock-ar/" aria-label="ลิงก์ของหน้าเว็บ"><button class="btn" id="qrMake" type="button">สร้าง QR</button></div>
+  <div class="qrs" id="qrs"></div>
+</div></div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+const SCAN_EXT=/*EXT*/'glb';
+const ROCKS=[{"id": "granite", "th": "หินแกรนิต", "en": "Granite", "env": "intr", "tex": "เนื้อผลึกหยาบ (phaneritic)", "comp": "เฟลซิก", "sw": [205, 165, 150], "minT": "เฟลด์สปาร์โพแทสเซียม ~32% · ควอตซ์ ~28% · แพลจิโอเคลส ~30% · ไบโอไทต์และฮอร์นเบลนด์ ~10%", "origin": "แมกมาเฟลซิกเย็นตัวช้าลึกใต้ผิวโลกเป็นมวลหินแทรกซอนขนาดใหญ่ (batholith) แล้วโผล่ขึ้นมาเพราะการยกตัวและการกัดกร่อน", "thai": "ภูเก็ต เช่น แหลมพรหมเทพ และแนวเทือกเขาภาคตะวันตกถึงภาคใต้ เช่น ดอยอินทนนท์ ตาก ระนอง", "why": "ควอตซ์และเฟลด์สปาร์โพแทสเซียมอยู่ปลายลำดับปฏิกิริยาของโบเวน จึงตกผลึกจากแมกมาที่มี SiO₂ สูง การเย็นตัวช้าทำให้ผลึกมีเวลาโตจนมองเห็นด้วยตาเปล่า", "hs": {"bt": ["ไบโอไทต์และฮอร์นเบลนด์", "แร่สีดำ เป็นแร่มาฟิกที่มี Fe–Mg ซึ่งในแกรนิตมีเพียงราว 10% หินจึงมีสีอ่อน"], "kfs": ["เฟลด์สปาร์โพแทสเซียม", "ผลึกสีชมพูอมส้ม ทำให้แกรนิตหลายแหล่งมีสีชมพู"], "pl": ["แพลจิโอเคลส", "ผลึกสีขาวขุ่น ผิวแนวแตกเรียบสะท้อนแสงวาบเมื่อเอียงก้อนหิน"], "qz": ["ควอตซ์", "ผลึกสีเทาใสคล้ายแก้ว ไม่มีแนวแตกเรียบ มักแทรกอยู่ระหว่างผลึกเฟลด์สปาร์"]}, "scan": {"title": "I-type Granite", "author": "UQ School of Earth and Environmental Sciences", "src": "https://sketchfab.com/3d-models/i-type-granite-52ab4825a157486e8f6124e38b117cfb", "lic": "CC BY 4.0", "licUrl": "https://creativecommons.org/licenses/by/4.0/"}}, {"id": "pegmatite", "th": "หินเพกมาไทต์", "en": "Pegmatite", "env": "intr", "tex": "เนื้อผลึกหยาบมาก (pegmatitic)", "comp": "เฟลซิก", "sw": [222, 200, 182], "minT": "เฟลด์สปาร์โพแทสเซียม ~45% · ควอตซ์ ~30% · แพลจิโอเคลส ~12% · มัสโคไวต์ ~8% · ทัวร์มาลีนและไบโอไทต์ ~5%", "origin": "ของเหลวแมกมาที่เหลือในช่วงท้ายของการตกผลึกแกรนิต มีน้ำและสารระเหยง่ายสูง พบเป็นสายหรือพนังตัดผ่านหินรอบข้าง", "thai": "สายเพกมาไทต์ในภาคใต้ เช่น พังงาและภูเก็ต เคยเป็นแหล่งแร่ดีบุกและแทนทาลัม", "why": "ขนาดผลึกไม่ได้ขึ้นกับเวลาเย็นตัวเพียงอย่างเดียว น้ำในของเหลวลดความหนืดและช่วยให้ไอออนแพร่ได้เร็ว ผลึกจึงโตได้หลายเซนติเมตร", "hs": {"tour": ["ทัวร์มาลีน (ชอร์ล)", "ผลึกแท่งสีดำ มีริ้วตามความยาวผลึก เป็นแร่ที่มีโบรอน"], "fsp": ["เฟลด์สปาร์", "ผลึกสีครีมถึงชมพูส้ม ขนาดใหญ่หลายเซนติเมตร หน้าแนวแตกเรียบกว้าง"], "qz": ["ควอตซ์", "ผลึกสีเทาใสถึงขาวขุ่น วาวแบบแก้ว"], "tour2": ["ผลึกแท่งยาวหลายเซนติเมตร", "ผลึกใหญ่เพราะของเหลวช่วงท้ายมีน้ำมาก ไอออนจึงเคลื่อนที่มาเกาะผิวผลึกได้เร็ว"]}, "scan": {"title": "Pegmatite", "author": "EDUROCK – Educational Virtual Rock Collection", "src": "https://sketchfab.com/3d-models/pegmatite-049860ca7f1c43058b21d91a84849780", "lic": "CC BY 4.0", "licUrl": "https://creativecommons.org/licenses/by/4.0/"}}, {"id": "diorite", "th": "หินไดโอไรต์", "en": "Diorite", "env": "intr", "tex": "เนื้อผลึกหยาบ (phaneritic)", "comp": "อินเทอร์มีเดียต", "sw": [150, 152, 148], "minT": "แพลจิโอเคลส ~58% · ฮอร์นเบลนด์ ~27% · ไบโอไทต์ ~7% · ควอตซ์และเฟลด์สปาร์โพแทสเซียมรวมไม่เกิน ~8%", "origin": "แมกมาอินเทอร์มีเดียตเย็นตัวช้าใต้ผิวโลก มักพบในแนวเทือกเขาเหนือเขตมุดตัวของแผ่นธรณี", "thai": "", "why": "อยู่กลางลำดับปฏิกิริยาของโบเวน ฮอร์นเบลนด์และแพลจิโอเคลสตกผลึกในช่วงอุณหภูมิใกล้กัน", "hs": {"pl": ["แพลจิโอเคลส", "ผลึกสีขาว เป็นแร่หลักของไดโอไรต์ (ชนิดโซเดียมสูง)"], "hbl": ["ฮอร์นเบลนด์", "ผลึกสีดำทรงแท่ง เป็นแร่มาฟิกหลัก"], "tex": ["ลายเกลือพริกไทย", "แร่ขาวกับแร่ดำมีปริมาณใกล้เคียงกันและแทบไม่มีควอตซ์ จึงแยกจากแกรนิตได้"]}, "scan": {"title": "Diorite", "author": "Digital Atlas of Ancient Life", "src": "https://sketchfab.com/3d-models/diorite-97eaf21c48424ebab6dd65fe4cf9e07d", "lic": "CC0 1.0", "licUrl": "https://creativecommons.org/publicdomain/zero/1.0/"}}, {"id": "gabbro", "th": "หินแกบโบร", "en": "Gabbro", "env": "intr", "tex": "เนื้อผลึกหยาบ (phaneritic)", "comp": "มาฟิก", "sw": [72, 76, 72], "minT": "ไพรอกซีน ~45% · แพลจิโอเคลสชนิดแคลเซียมสูง ~45% · โอลิวีน ~7% · แมกนีไทต์ ~3%", "origin": "แมกมามาฟิกเย็นตัวช้าใต้ผิวโลก พบเป็นชั้นล่างของเปลือกโลกมหาสมุทรและมวลหินแทรกซอนแบบชั้น (layered intrusion)", "thai": "", "why": "องค์ประกอบเหมือนหินบะซอลต์ ต่างกันที่อัตราการเย็นตัว แพลจิโอเคลสที่มี Ca สูงมีสีเทาเข้ม ไม่ขาวเหมือนในแกรนิต", "hs": {"pl": ["แพลจิโอเคลส", "จุดสีเทาอ่อน เป็นแพลจิโอเคลสชนิดแคลเซียมสูง"], "px": ["ไพรอกซีน", "ผลึกสีดำอมเขียว เป็นแร่มาฟิกหลักของแกบโบร"], "wx": ["ผิวผุสีน้ำตาล", "เหล็กในแร่มาฟิกถูกออกซิไดซ์ ต้องดูผิวรอยแตกใหม่จึงเห็นสีจริงของหิน"]}, "scan": {"title": "Gabbro", "author": "EDUROCK – Educational Virtual Rock Collection", "src": "https://sketchfab.com/3d-models/gabbro-297a1115c86e4a12a480213768b795a4", "lic": "CC BY 4.0", "licUrl": "https://creativecommons.org/licenses/by/4.0/"}}, {"id": "peridotite", "th": "หินเพอริโดไทต์", "en": "Peridotite xenolith", "sub": "เศษหินเพอริโดไทต์ในหินบะซอลต์", "env": "intr", "tex": "เนื้อผลึกหยาบ (phaneritic)", "comp": "อัลตรามาฟิก", "sw": [118, 132, 70], "minT": "โอลิวีน ~80% · ไพรอกซีน ~17% · โครไมต์และแร่ทึบแสง ~3%", "origin": "เป็นหินหลักของเนื้อโลกตอนบน ก้อนนี้ติดขึ้นมาถึงผิวโลกเป็นเศษหินแปลกปลอม (xenolith) ในลาวาบะซอลต์", "thai": "", "why": "การหลอมบางส่วนของเพอริโดไทต์ในเนื้อโลกให้แมกมาบะซอลต์ ลาวาที่ขึ้นมาเร็วจึงพาเศษหินต้นกำเนิดของตัวเองขึ้นมาด้วย", "note": "ก้อนสีเขียวคือเพอริโดไทต์ ส่วนเนื้อสีเทาเข้มที่มีรูพรุนรอบ ๆ คือหินบะซอลต์", "hs": {"xeno": ["เศษหินเพอริโดไทต์ (xenolith)", "ก้อนสีเขียวมะกอก มาจากเนื้อโลกตอนบน ติดขึ้นมากับลาวา"], "ves": ["รูพรุนในบะซอลต์ (vesicle)", "ช่องจากฟองแก๊สในลาวาที่ค้างอยู่ขณะลาวาแข็งตัว"], "xeno2": ["โอลิวีน", "ผลึกเม็ดสีเขียววาวแบบแก้ว เป็นแร่หลักของเพอริโดไทต์"], "bas": ["หินบะซอลต์ที่ห่อหุ้ม", "เนื้อละเอียดสีเทาเข้ม เย็นตัวเร็วบนผิวโลก"]}, "scan": {"title": "Peridotite Xenoliths in Vesicular Basalt", "author": "Marissa Dudek", "src": "https://sketchfab.com/3d-models/peridotite-xenoliths-in-vesicular-basalt-485d264e28ba424cba3f1b3d6541653d", "lic": "CC BY-NC 4.0", "licUrl": "https://creativecommons.org/licenses/by-nc/4.0/"}}, {"id": "rhyolite", "th": "หินไรโอไลต์", "en": "Rhyolite", "env": "extr", "tex": "เนื้อผลึกละเอียด (aphanitic)", "comp": "เฟลซิก", "sw": [196, 168, 158], "minT": "ควอตซ์และเฟลด์สปาร์โพแทสเซียมรวม ~75% · แพลจิโอเคลส ~20% · ไบโอไทต์ ~5% (ผลึกเล็กมาก เห็นได้ในภาพตัดบาง)", "origin": "ลาวาเฟลซิกที่หนืดมากเย็นตัวเร็วบนผิวโลก มักพบเป็นโดมลาวา หรือเกิดร่วมกับการปะทุแบบระเบิด", "thai": "", "why": "องค์ประกอบเหมือนแกรนิต แต่เย็นตัวเร็วจนผลึกเล็กเกินกว่าจะเห็นด้วยตาเปล่า", "hs": {"gm": ["เนื้อพื้นละเอียด", "สีชมพูอมเทา แยกผลึกแต่ละเม็ดด้วยตาเปล่าไม่ได้"], "phen": ["ผลึกดอกสีอ่อน", "ผลึกเฟลด์สปาร์หรือควอตซ์ที่โตก่อนลาวาปะทุ ฝังอยู่ในเนื้อพื้น"], "flow": ["ริ้วสีอ่อน", "ไรโอไลต์มักมีริ้วการไหล (flow banding) เพราะลาวาหนืดมาก ลองหมุนดูว่าริ้วเรียงไปทางเดียวกันหรือไม่"], "bt": ["จุดดำเล็ก ๆ", "ไบโอไทต์หรือแร่ทึบแสงขนาดเล็ก แร่มาฟิกมีน้อย หินจึงสีอ่อน"]}, "scan": {"title": "Rhyolite", "author": "Digital Atlas of Ancient Life", "src": "https://sketchfab.com/3d-models/rhyolite-6911015bbab84da7aeffe3a11751b3e2", "lic": "CC0 1.0", "licUrl": "https://creativecommons.org/publicdomain/zero/1.0/"}}, {"id": "andesite", "th": "หินแอนดีไซต์", "en": "Andesite", "env": "extr", "tex": "เนื้อดอก (porphyritic)", "comp": "อินเทอร์มีเดียต", "sw": [128, 128, 124], "minT": "ผลึกดอกแพลจิโอเคลสและฮอร์นเบลนด์ ~15–25% ในเนื้อพื้นที่มีแพลจิโอเคลส ไพรอกซีน และแก้ว", "origin": "แมกมาอินเทอร์มีเดียตในเขตมุดตัว ผลึกดอกโตช้าในกระเปาะแมกมา แล้วปะทุออกมาเย็นตัวเร็ว สร้างภูเขาไฟสลับชั้น", "thai": "แนวหินภูเขาไฟเลย–เพชรบูรณ์ และลพบุรี", "why": "เนื้อดอกบอกประวัติการเย็นตัวสองขั้น คือช้าในกระเปาะแมกมาก่อน แล้วเร็วหลังปะทุ ชื่อหินมาจากเทือกเขาแอนดีส", "hs": {"pl": ["ผลึกดอกแพลจิโอเคลส", "ผลึกสีขาวทรงแท่งยาว 1–5 mm โตช้าในกระเปาะแมกมาก่อนปะทุ"], "gm": ["เนื้อพื้นสีเทา", "เย็นตัวเร็วหลังปะทุ จึงแยกผลึกด้วยตาเปล่าไม่ได้"], "hbl": ["ฮอร์นเบลนด์", "ผลึกดอกสีดำทรงแท่ง"], "pl2": ["ผลึกดอกอีกด้านหนึ่ง", "ผลึกดอกกระจายทั่วก้อน ขนาดใหญ่กว่าเนื้อพื้นหลายสิบเท่า"]}, "scan": {"title": "Andesite (plagioclase porphyritic)", "author": "WVU Volcanology and Petrology Lab", "src": "https://sketchfab.com/3d-models/andesite-plagioclase-porphyritic-42e0782f1cb14ad580d6e1d815b0d399", "lic": "CC BY 4.0", "licUrl": "https://creativecommons.org/licenses/by/4.0/"}}, {"id": "basalt", "th": "หินบะซอลต์", "en": "Basalt", "env": "extr", "tex": "เนื้อผลึกละเอียด (aphanitic)", "comp": "มาฟิก", "sw": [60, 62, 62], "minT": "แพลจิโอเคลส ~45% · ไพรอกซีน ~35% · โอลิวีน ~6% · แมกนีไทต์ ~6% · แก้วภูเขาไฟ ~8%", "origin": "ลาวามาฟิกเย็นตัวเร็วบนผิวโลก เป็นหินหลักของพื้นมหาสมุทรและภูเขาไฟรูปโล่", "thai": "เขากระโดงและพนมรุ้ง บุรีรัมย์ · บ่อไร่ ตราด และจันทบุรี ซึ่งหินบะซอลต์นำพลอยขึ้นมา", "why": "ลาวามาฟิกหนืดน้อย ไหลได้ไกล และเย็นตัวเร็วจนผลึกเล็กเกินกว่าจะเห็นด้วยตาเปล่า", "hs": {"aph": ["เนื้อผลึกละเอียด", "สีเทาดำสม่ำเสมอ ผลึกเล็กกว่า 0.5 mm ต้องใช้กล้องจุลทรรศน์จึงเห็น"], "wx": ["ผิวผุสีน้ำตาลเหลือง", "เหล็กจากไพรอกซีนและโอลิวีนถูกออกซิไดซ์เป็นเหล็กออกไซด์"], "vein": ["เส้นสีขาว", "แร่ที่ตกผลึกในรอยแตกภายหลัง เช่น แคลไซต์หรือซีโอไลต์ ไม่ใช่ส่วนของลาวาเดิม"]}, "scan": {"title": "Basalt", "author": "mnaglak", "src": "https://sketchfab.com/3d-models/basalt-0b1c6dca1eaf4bb797dcc30ccc84ebe8", "lic": "CC BY 4.0", "licUrl": "https://creativecommons.org/licenses/by/4.0/"}}, {"id": "obsidian", "th": "หินออบซิเดียน", "en": "Obsidian", "env": "extr", "tex": "เนื้อแก้ว (glassy)", "comp": "เฟลซิก", "sw": [24, 22, 26], "minT": "แก้วภูเขาไฟเกือบทั้งหมด อาจมีผลึกจิ๋ว (microlite) เล็กน้อย", "origin": "ลาวาเฟลซิกเย็นตัวเร็วมากจนอะตอมจัดเรียงเป็นผลึกไม่ทัน มักเกิดที่ขอบธารลาวาหรือโดมลาวา", "thai": "", "why": "สีดำมาจากแก้วหนาที่ดูดกลืนแสงและผลึกจิ๋วของเหล็กออกไซด์ ไม่ได้มาจากแร่ Fe–Mg จำนวนมาก องค์ประกอบส่วนใหญ่จึงเป็นเฟลซิก", "hs": {"conch": ["รอยแตกแบบฝาหอย", "ผิวโค้งเว้าซ้อนกันเป็นวง เกิดเพราะแก้วไม่มีแนวแตกเรียบ"], "lus": ["วาวแก้ว", "สะท้อนแสงเป็นผิวเรียบต่อเนื่อง ไม่มีจุดสะท้อนของผลึก"], "conch2": ["ขอบคม", "ขอบรอยแตกบางและคมมาก มนุษย์ยุคก่อนประวัติศาสตร์ใช้ทำใบมีด"]}, "scan": {"title": "Obsidian", "author": "PalomarESES", "src": "https://sketchfab.com/3d-models/obsidian-73e284cd06634e9a9ba62b2f27b54f95", "lic": "CC BY 4.0", "licUrl": "https://creativecommons.org/licenses/by/4.0/"}}, {"id": "pumice", "th": "หินพัมมิซ", "en": "Pumice", "env": "extr", "tex": "เนื้อฟองหรือรูพรุน (vesicular)", "comp": "เฟลซิก", "sw": [214, 210, 198], "minT": "แก้วภูเขาไฟที่เป็นผนังฟองแก๊ส รูพรุนกินปริมาตรมากกว่าครึ่ง", "origin": "แมกมาเฟลซิกที่มีแก๊สละลายอยู่มากถูกพ่นออกมาในการปะทุแบบระเบิด แก๊สขยายตัวเป็นฟองขณะแก้วแข็งตัว", "thai": "", "why": "รูพรุนปิดจำนวนมากทำให้ความหนาแน่นรวมน้อยกว่าน้ำ จึงลอยน้ำได้ ทั้งที่แก้วของผนังรูหนักกว่าน้ำ", "hs": {"ves": ["รูพรุน (vesicle)", "ช่องจากฟองแก๊สจำนวนมาก ทำให้ก้อนหินเบาจนลอยน้ำได้"], "wall": ["ผนังแก้วบาง", "แก้วสีอ่อนบอกองค์ประกอบเฟลซิก"], "shape": ["ผิวมนเรียบ", "ก้อนนี้มีรูปทรงมน อาจถูกขัดแต่งหรือกลิ้งในน้ำ พัมมิซจากการปะทุโดยทั่วไปเป็นก้อนเหลี่ยม"]}, "scan": {"title": "Pumice", "author": "GSGEQueens", "src": "https://sketchfab.com/3d-models/pumice-b9ce131442ff4afe8e6d3bf0b6c774b9", "lic": "CC BY 4.0", "licUrl": "https://creativecommons.org/licenses/by/4.0/"}}, {"id": "scoria", "th": "หินสโกเรีย", "en": "Scoria", "env": "extr", "tex": "เนื้อฟองหรือรูพรุน (vesicular)", "comp": "มาฟิก", "sw": [92, 52, 44], "minT": "แก้วภูเขาไฟสีน้ำตาลเข้ม มีผลึกแพลจิโอเคลสจิ๋ว และรูพรุนจำนวนมาก", "origin": "ลาวามาฟิกที่มีแก๊สถูกพ่นออกเป็นก้อนในการปะทุแบบพ่นลาวา สะสมเป็นกรวยภูเขาไฟสโกเรีย (cinder cone)", "thai": "", "why": "ลาวามาฟิกหนืดน้อยกว่า ฟองแก๊สจึงรวมตัวเป็นรูใหญ่และผนังรูหนา ต่างจากพัมมิซที่ฟองเล็กแน่นมาก", "hs": {"ves": ["รูพรุนขนาดใหญ่", "ผนังรูหนากว่าพัมมิซ หินจึงจมน้ำ"], "ox": ["สีน้ำตาลแดง", "เหล็กถูกออกซิไดซ์ขณะหินยังร้อน"], "wall": ["ผิวขรุขระคม", "แตกไม่เรียบ เปราะกว่าหินบะซอลต์เนื้อแน่น"]}, "scan": {"title": "Scoria", "author": "Shellie Luallin", "src": "https://sketchfab.com/3d-models/scoria-ac44e32b1ee94c43ab1ef5ddd8b4af54", "lic": "CC BY 4.0", "licUrl": "https://creativecommons.org/licenses/by/4.0/"}}, {"id": "tuff", "th": "หินทัฟฟ์", "en": "Tuff", "env": "extr", "tex": "เนื้อเศษภูเขาไฟ (pyroclastic)", "comp": "เฟลซิก", "sw": [208, 194, 172], "minT": "เศษแก้วภูเขาไฟ เศษพัมมิซ ผลึกควอตซ์ เฟลด์สปาร์ และไบโอไทต์ที่แตกหัก และเศษหิน", "origin": "เถ้าภูเขาไฟจากการปะทุแบบระเบิดตกสะสมแล้วแข็งตัวเป็นหิน ถ้าสะสมขณะยังร้อนจัด เศษจะเชื่อมกันแน่นเป็นทัฟฟ์เชื่อม (welded tuff)", "thai": "", "why": "เนื้อเศษภูเขาไฟเกิดจากแมกมาแตกกระจายในอากาศแล้วตกสะสม จึงเป็นหินอัคนีพุที่ดูคล้ายหินตะกอน", "hs": {"lith": ["เศษหิน (lithic fragment)", "เศษหินสีเข้มที่แรงระเบิดทำให้หลุดจากผนังปล่องภูเขาไฟ"], "ash": ["เนื้อพื้นเถ้าภูเขาไฟ", "เถ้าละเอียดสีครีม ขนาดเล็กกว่า 2 mm"], "frag": ["เศษพัมมิซหรือเศษผลึก", "เศษสีน้ำตาลอ่อนที่แตกกระจายมาพร้อมเถ้า"], "lith2": ["เศษหลายขนาดปนกัน", "เศษใหญ่และเล็กปนกันเพราะตกสะสมพร้อมกันจากการปะทุครั้งเดียว"]}, "scan": {"title": "Volcanic Tuff", "author": "Marissa Dudek", "src": "https://sketchfab.com/3d-models/volcanic-tuff-5ab31bd88f2b441cb0ab9b4fd9c6bba8", "lic": "CC BY-NC 4.0", "licUrl": "https://creativecommons.org/licenses/by-nc/4.0/"}}];
+const HSPOS={"granite": [{"k": "bt", "p": [0.0006, 0.0592, 0.025], "n": [0.1538, 0.3007, 0.9413]}, {"k": "kfs", "p": [0.0006, 0.0781, 0.0121], "n": [0.573, 0.6616, 0.4836]}, {"k": "pl", "p": [-0.0277, 0.0397, 0.0305], "n": [0.2215, 0.0434, 0.9742]}, {"k": "qz", "p": [0.0055, 0.0677, -0.0217], "n": [-0.3772, 0.7842, -0.4926]}], "diorite": [{"k": "pl", "p": [0.0185, 0.0543, 0.0199], "n": [0.4487, 0.5255, 0.7229]}, {"k": "hbl", "p": [-0.0225, 0.0647, 0.0094], "n": [-0.1849, 0.3688, 0.9109]}, {"k": "tex", "p": [-0.0146, 0.0477, -0.0175], "n": [0.2039, -0.0277, -0.9786]}], "gabbro": [{"k": "pl", "p": [0.0166, 0.0465, 0.0149], "n": [0.5885, 0.462, 0.6635]}, {"k": "px", "p": [-0.009, 0.0408, 0.0267], "n": [0.3323, 0.4274, 0.8408]}, {"k": "wx", "p": [-0.0043, 0.0548, -0.0357], "n": [-0.2195, -0.1049, -0.9699]}], "peridotite": [{"k": "xeno", "p": [-0.0229, 0.0518, -0.0261], "n": [-0.0838, -0.1321, -0.9877]}, {"k": "ves", "p": [-0.0117, 0.0662, 0.0186], "n": [0.2094, 0.0745, 0.975]}, {"k": "xeno2", "p": [0.0351, 0.0237, 0.0222], "n": [-0.1317, 0.1065, 0.9856]}, {"k": "bas", "p": [-0.0019, 0.0353, 0.023], "n": [0.2723, 0.1902, 0.9432]}], "rhyolite": [{"k": "gm", "p": [-0.0139, 0.043, 0.0183], "n": [0.1668, 0.1752, 0.9703]}, {"k": "phen", "p": [0.0208, 0.0506, -0.0075], "n": [0.0248, 0.7638, 0.6449]}, {"k": "flow", "p": [0.018, 0.0315, 0.0244], "n": [0.1924, 0.5114, 0.8376]}, {"k": "bt", "p": [-0.0134, 0.0327, -0.0204], "n": [-0.2023, -0.2995, -0.9324]}], "andesite": [{"k": "pl", "p": [0.0196, 0.0382, 0.0283], "n": [-0.2093, 0.7535, 0.6232]}, {"k": "gm", "p": [-0.0094, 0.0542, 0.0158], "n": [0.1896, 0.7745, 0.6035]}, {"k": "hbl", "p": [0.01, 0.0313, 0.0341], "n": [-0.174, 0.8719, 0.4576]}, {"k": "pl2", "p": [-0.0098, 0.0552, -0.0288], "n": [0.0252, 0.504, -0.8633]}], "basalt": [{"k": "aph", "p": [-0.0167, 0.0222, 0.0421], "n": [0.4286, 0.1841, 0.8846]}, {"k": "wx", "p": [-0.0004, 0.0693, -0.0011], "n": [0.2432, 0.8537, 0.4606]}, {"k": "vein", "p": [-0.0122, 0.0644, -0.0429], "n": [-0.8179, -0.1795, -0.5467]}], "obsidian": [{"k": "conch", "p": [-0.0077, 0.0497, 0.0195], "n": [0.1807, 0.9415, 0.2845]}, {"k": "lus", "p": [0.0055, 0.042, 0.025], "n": [0.2681, 0.7888, 0.5531]}, {"k": "conch2", "p": [-0.0201, 0.0339, -0.0364], "n": [-0.2437, 0.7252, -0.644]}], "pumice": [{"k": "ves", "p": [0.0079, 0.035, 0.0123], "n": [0.5623, -0.3719, 0.7386]}, {"k": "wall", "p": [0.0228, 0.0277, 0.0139], "n": [-0.5173, 0.3814, 0.7661]}, {"k": "shape", "p": [-0.0095, 0.0438, -0.0109], "n": [-0.2205, 0.2065, -0.9533]}], "scoria": [{"k": "ves", "p": [-0.0062, 0.0712, 0.0085], "n": [0.0563, -0.2936, 0.9543]}, {"k": "ox", "p": [-0.0174, 0.0807, -0.0247], "n": [-0.9761, -0.2119, -0.0486]}, {"k": "wall", "p": [-0.0231, 0.0567, 0.0167], "n": [0.3995, -0.1908, 0.8966]}], "tuff": [{"k": "lith", "p": [0.021, 0.0403, 0.0247], "n": [0.0197, 0.1597, 0.987]}, {"k": "ash", "p": [-0.0044, 0.0427, 0.0241], "n": [-0.009, 0.1033, 0.9946]}, {"k": "frag", "p": [-0.0085, 0.0499, 0.0234], "n": [-0.1017, 0.0998, 0.9898]}, {"k": "lith2", "p": [0.0046, 0.052, -0.0136], "n": [-0.265, 0.4158, -0.87]}], "pegmatite": [{"k": "tour", "p": [0.0032, 0.1402, 0.0141], "n": [-0.0339, 0.8419, 0.5385]}, {"k": "fsp", "p": [0.0088, 0.1001, 0.0584], "n": [0.3549, 0.1336, 0.9253]}, {"k": "qz", "p": [0.0071, 0.1259, -0.0455], "n": [0.4888, 0.0871, -0.868]}, {"k": "tour2", "p": [-0.0052, 0.08, -0.0598], "n": [-0.3713, -0.0152, -0.9284]}]};
+const $=s=>document.querySelector(s);
+const mv=$('#mv');
+const LS='rockAR.hs.v1';
+function lsGet(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}}
+function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+let OVR=lsGet(LS,{});
+let cur=null,sel=null,editing=false,moving=null;
+const urlCache={};
+
+/* ---------- tray ---------- */
+const GROUPS=[['intr','หินอัคนีแทรกซอน'],['extr','หินอัคนีพุ']];
+$('#tray').innerHTML=GROUPS.map(([g,t])=>`<div class="grp"><h2>${t}</h2><ul>${ROCKS.filter(r=>r.env===g).map(r=>
+  `<li><button class="rk" type="button" data-id="${r.id}" aria-current="false"><i style="background:rgb(${r.sw.join(',')})"></i><b>${r.th.replace('หิน','')}</b><span>${r.tex.split(' (')[0]}</span></button></li>`).join('')}</ul></div>`).join('');
+$('#tray').addEventListener('click',e=>{const b=e.target.closest('.rk');if(b)select(b.dataset.id)});
+
+/* ---------- loading .glb (direct file, or base64 .glb.txt where .glb cannot be served) ---------- */
+function b64ToBytes(s){if(Uint8Array.fromBase64)return Uint8Array.fromBase64(s.trim());const bin=atob(s.trim()),n=bin.length,u=new Uint8Array(n);for(let i=0;i<n;i++)u[i]=bin.charCodeAt(i);return u}
+async function srcFor(id){
+  if(urlCache[id])return urlCache[id];
+  if(SCAN_EXT==='glb')return urlCache[id]=`scans/${id}.glb`;
+  const r=await fetch(`scans/${id}.glb.txt`);if(!r.ok)throw new Error('ไม่พบไฟล์โมเดล '+id);
+  const blob=new Blob([b64ToBytes(await r.text())],{type:'model/gltf-binary'});
+  return urlCache[id]=URL.createObjectURL(blob);
+}
+
+/* ---------- hotspots ---------- */
+function hsList(r){return (HSPOS[r.id]||[]).filter(h=>r.hs[h.k]).map((h,i)=>{const o=(OVR[r.id]||{})[h.k];return {k:h.k,i:i+1,p:o?o.p:h.p,n:o?o.n:h.n,t:r.hs[h.k][0],d:r.hs[h.k][1]}})}
+const v3=a=>a.map(x=>(+x).toFixed(4)).join(' ');
+function drawPins(){
+  mv.querySelectorAll('.pin').forEach(p=>p.remove());
+  for(const h of hsList(cur)){
+    const b=document.createElement('button');b.type='button';b.className='pin'+(sel===h.k?' on':'');b.slot='hotspot-'+h.k;
+    b.dataset.position=v3(h.p);b.dataset.normal=v3(h.n);b.dataset.visibilityAttribute='visible';b.dataset.k=h.k;
+    b.setAttribute('aria-label',`ป้าย ${h.i}: ${h.t}`);b.innerHTML=`${h.i}<span class="tag">${h.t}</span>`;
+    b.addEventListener('click',e=>{e.stopPropagation();pick(h.k,true)});mv.appendChild(b)}
+}
+function showStage(){const r=$('.stage').getBoundingClientRect();if(r.top<0||r.bottom>innerHeight+40)$('.stage').scrollIntoView({block:'nearest',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'})}
+function pick(k,focus){
+  sel=sel===k&&!focus?null:k;
+  mv.querySelectorAll('.pin').forEach(p=>p.classList.toggle('on',p.dataset.k===sel));
+  document.querySelectorAll('.lb').forEach(p=>p.classList.toggle('on',p.dataset.k===sel));
+  if(sel&&focus){const h=hsList(cur).find(x=>x.k===sel);const n=h.n;
+    const th=Math.atan2(n[0],n[2])*180/Math.PI,ph=Math.min(150,Math.max(30,Math.acos(Math.max(-1,Math.min(1,n[1])))*180/Math.PI));
+    const d=mv.getDimensions(),R=Math.max(d.x,d.y,d.z)*1.7;
+    showStage();setSpin(false);mv.cameraTarget=`${h.p[0]}m ${h.p[1]}m ${h.p[2]}m`;mv.cameraOrbit=`${th.toFixed(1)}deg ${ph.toFixed(1)}deg ${R.toFixed(3)}m`}
+}
+
+/* ---------- rock card ---------- */
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function renderCard(){
+  const r=cur,hs=hsList(r);
+  $('#card').innerHTML=`<h2>${r.th}</h2><div class="en">${r.en}</div>
+  <div class="chips"><span class="chip k">${r.env==='intr'?'หินอัคนีแทรกซอน':'หินอัคนีพุ'}</span><span class="chip">${r.tex}</span><span class="chip">${r.comp}</span></div>
+  ${r.note?`<p class="note">${r.note}</p>`:''}
+  <h3>ป้ายบนก้อนหิน</h3>
+  <ul class="labels ${editing?'editing':''}">${hs.map(h=>`<li class="lbrow"><button class="lb${sel===h.k?' on':''}" type="button" data-k="${h.k}"><span class="n">${h.i}</span><b>${h.t}</b><small>${h.d}</small></button><button class="btn mv" type="button" data-move="${h.k}">ย้าย</button></li>`).join('')}</ul>
+  <h3>แร่ประกอบหิน</h3><p>${r.minT}</p>
+  <h3>การเกิด</h3><p>${r.origin}</p>
+  ${r.thai?`<h3>พบในประเทศไทย</h3><p>${r.thai}</p>`:''}
+  <h3>ทำไมจึงเป็นเช่นนี้</h3><p>${r.why}</p>
+  <div class="teacher"><button class="btn" id="tEdit" type="button" aria-pressed="${editing}">ครู: ปรับตำแหน่งป้าย</button>
+   ${editing?`<button class="btn" id="tCopy" type="button">คัดลอกพิกัด</button><button class="btn" id="tUndo" type="button">คืนตำแหน่งเดิม</button><span class="msg" id="eMsg">กด “ย้าย” ที่ป้าย แล้วแตะบนก้อนหินตรงจุดใหม่ ตำแหน่งจะจำไว้ในเบราว์เซอร์นี้</span>`:''}</div>
+  <p class="credit">โมเดลสแกน: <a href="${r.scan.src}" target="_blank" rel="noopener">${esc(r.scan.title)}</a> โดย ${esc(r.scan.author)} · สัญญาอนุญาต <a href="${r.scan.licUrl}" target="_blank" rel="noopener">${r.scan.lic}</a> · ลดขนาดไฟล์และปรับมาตราส่วนเพื่อใช้ในชั้นเรียน ขนาดใน AR เป็นค่าประมาณ</p>`;
+}
+$('#card').addEventListener('click',e=>{
+  const m=e.target.closest('[data-move]');if(m){moving=m.dataset.move;pick(moving,false);$('#hint').hidden=false;return}
+  const b=e.target.closest('.lb');if(b){pick(b.dataset.k,true);return}
+  if(e.target.id==='tEdit'){editing=!editing;moving=null;$('#hint').hidden=true;renderCard();return}
+  if(e.target.id==='tUndo'){delete OVR[cur.id];lsSet(LS,OVR);drawPins();renderCard();toast('คืนตำแหน่งป้ายเดิมของ'+cur.th+'แล้ว');return}
+  if(e.target.id==='tCopy'){const out={};out[cur.id]=hsList(cur).map(h=>({k:h.k,p:h.p,n:h.n}));const txt=JSON.stringify(out);
+    const done=()=>toast('คัดลอกพิกัดป้ายของ'+cur.th+'แล้ว');
+    try{navigator.clipboard.writeText(txt).then(done,()=>showText(txt))}catch(err){showText(txt)}}
+});
+function showText(t){const m=$('#eMsg');if(m){m.textContent=t;const r=document.createRange();r.selectNodeContents(m);const s=getSelection();s.removeAllRanges();s.addRange(r)}}
+
+/* tap to move a label (teacher mode) */
+let down=null;
+mv.addEventListener('pointerdown',e=>{down=[e.clientX,e.clientY]});
+mv.addEventListener('pointerup',e=>{
+  if(!moving||!down||Math.hypot(e.clientX-down[0],e.clientY-down[1])>6)return;
+  const rc=mv.getBoundingClientRect(),hit=mv.positionAndNormalFromPoint(e.clientX-rc.left,e.clientY-rc.top);
+  if(!hit){toast('แตะให้โดนผิวก้อนหิน');return}
+  const f=v=>[v.x,v.y,v.z].map(x=>+x.toFixed(4));
+  (OVR[cur.id]=OVR[cur.id]||{})[moving]={p:f(hit.position),n:f(hit.normal)};lsSet(LS,OVR);
+  mv.updateHotspot({name:'hotspot-'+moving,position:v3(f(hit.position)),normal:v3(f(hit.normal))});
+  const t=cur.hs[moving][0];moving=null;$('#hint').hidden=true;toast('ย้ายป้าย “'+t+'” แล้ว');
+});
+
+/* ---------- select rock ---------- */
+async function select(id){
+  const r=ROCKS.find(x=>x.id===id)||ROCKS[0];if(cur&&cur.id===r.id)return;
+  cur=r;sel=null;moving=null;$('#hint').hidden=true;
+  document.querySelectorAll('.rk').forEach(b=>b.setAttribute('aria-current',String(b.dataset.id===r.id)));
+  $('#mName').textContent=r.th;$('#mSub').textContent=r.sub||r.tex.split(' (')[0];$('#mDims').textContent='';
+  mv.alt='โมเดลสามมิติของ'+r.th;renderCard();
+  $('#loading').hidden=false;
+  try{const u=await srcFor(r.id);if(cur!==r)return;
+    mv.src=u;drawPins()}
+  catch(e){$('#loading').hidden=true;toast('โหลดโมเดลไม่สำเร็จ: '+e.message)}
+}
+mv.addEventListener('load',()=>{$('#loading').hidden=true;mv.cameraTarget='auto auto auto';mv.cameraOrbit='20deg 65deg auto';mv.jumpCameraToGoal();setSpin(true);const d=mv.getDimensions();
+  $('#mDims').textContent=`${(d.x*100).toFixed(1)} × ${(d.y*100).toFixed(1)} × ${(d.z*100).toFixed(1)} cm`;
+  $('#arNote').hidden=!!mv.canActivateAR;
+  /* preload neighbours */
+  const i=ROCKS.indexOf(cur);[ROCKS[i+1]].filter(Boolean).forEach(r=>srcFor(r.id).catch(()=>{}))});
+mv.addEventListener('ar-status',e=>{if(e.detail.status==='failed')toast('เปิด AR ไม่สำเร็จ ลองเปิดหน้าเว็บด้วย Chrome (Android) หรือ Safari (iPhone) โดยตรง')});
+
+/* ---------- stage tools ---------- */
+function setSpin(on){mv.autoRotate=on;$('#tSpin').setAttribute('aria-pressed',on)}
+$('#tSpin').onclick=()=>setSpin(!mv.autoRotate);
+$('#tPins').onclick=e=>{const on=e.currentTarget.getAttribute('aria-pressed')!=='true';e.currentTarget.setAttribute('aria-pressed',on);$('.stage').classList.toggle('noPins',!on)};
+$('#tNames').onclick=e=>{const on=e.currentTarget.getAttribute('aria-pressed')!=='true';e.currentTarget.setAttribute('aria-pressed',on);$('.stage').classList.toggle('showAll',on)};
+$('#tReset').onclick=()=>{mv.cameraTarget='auto auto auto';mv.cameraOrbit='20deg 65deg auto';pick(null,false);sel=null;setSpin(true)};
+
+let tt;function toast(m){const t=$('#toast');t.textContent=m;t.hidden=false;clearTimeout(tt);tt=setTimeout(()=>t.hidden=true,3200)}
+
+/* ---------- QR sheet ---------- */
+function baseGuess(){const saved=lsGet('rockAR.base','');if(saved)return saved;
+  if(window.self===window.top&&/^https?:/.test(location.protocol))return location.href.split('#')[0];return ''}
+function makeQR(){const base=$('#qrBase').value.trim().split('#')[0];
+  if(!/^https?:\/\//.test(base)){$('#qrs').innerHTML='<p style="color:var(--muted)">วางลิงก์ของหน้านี้ (ขึ้นต้นด้วย https://) แล้วกด “สร้าง QR”</p>';return}
+  lsSet('rockAR.base',base);
+  if(typeof qrcode!=='function'){$('#qrs').innerHTML='<p>โหลดตัวสร้าง QR ไม่สำเร็จ</p>';return}
+  $('#qrs').innerHTML=ROCKS.map(r=>{const q=qrcode(0,'M');q.addData(base+'#'+r.id);q.make();
+    return `<div class="qr">${q.createSvgTag({cellSize:4,margin:2,scalable:true})}<b>${r.th}</b><span>#${r.id}</span></div>`}).join('')}
+$('#qrOpen').onclick=()=>{$('#sheet').hidden=false;$('#qrBase').value=baseGuess();makeQR();$('#qrBase').focus()};
+$('#qrClose').onclick=()=>{$('#sheet').hidden=true};
+$('#sheet').addEventListener('click',e=>{if(e.target.id==='sheet')$('#sheet').hidden=true});
+$('#qrMake').onclick=makeQR;
+document.addEventListener('keydown',e=>{if(e.key==='Escape')$('#sheet').hidden=true});
+
+/* ---------- start ---------- */
+const start=(location.hash||'').slice(1);
+customElements.whenDefined('model-viewer').then(()=>select(ROCKS.some(r=>r.id===start)?start:'granite'));
+window.addEventListener('hashchange',()=>{const h=location.hash.slice(1);if(ROCKS.some(r=>r.id===h))select(h)});
+</script>
+
+</body>
+</html>
